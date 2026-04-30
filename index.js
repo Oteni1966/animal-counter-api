@@ -4,8 +4,24 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+let dailyCount = 0;
+let currentDate = new Date().toDateString();
 
 app.post('/estimate', async (req, res) => {
+    const today = new Date().toDateString();
+
+if (today !== currentDate) {
+  currentDate = today;
+  dailyCount = 0;
+}
+
+if (dailyCount >= 50) {
+  return res.status(429).json({
+    error: "Daily AI limit reached. Try again tomorrow."
+  });
+}
+
+dailyCount++;
     try {
         const { image } = req.body;
         if (!image) return res.status(400).json({ error: 'No image provided' });
