@@ -21,12 +21,12 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+     callback(null, false);
     }
   }
 }));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '20mb' }));
 
 // Rate limit: max 20 photo counts per IP per hour
 const estimateLimiter = rateLimit({
@@ -38,8 +38,10 @@ const estimateLimiter = rateLimit({
 });
 
 app.post('/estimate', estimateLimiter, async (req, res) => {
-  try {
-    const { image } = req.body;
+    console.log('Estimate request at', new Date().toISOString(), 'origin:', req.headers.origin);
+    try {
+      const { image } = req.body;
+      console.log('Image received, base64 length:', image ? image.length : 0);
     if (!image) return res.status(400).json({ error: 'No image provided' });
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -50,7 +52,7 @@ app.post('/estimate', estimateLimiter, async (req, res) => {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5',
+       model: 'claude-haiku-4-5-20251001',
         max_tokens: 256,
         messages: [{
           role: 'user',
@@ -63,14 +65,27 @@ app.post('/estimate', estimateLimiter, async (req, res) => {
     });
 
     const data = await response.json();
-    const count = parseInt(data.content[0].text.trim());
-    res.json({ count: isNaN(count) ? 0 : count });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+      if (!response.ok) {
+        console.error('Anthropic API error:', response.status, data);
+        return res.status(response.status).json({ error: 'Anthropic API error', details: data });
+      }
+      console.log('Anthropic response received:', JSON.stringify(data).slice(0, 200));
+      const count = parseInt(data.content[0].text.trim());
+      res.json({ count: isNaN(count) ? 0 : count });
+    } catch (err) {
+      console.error('Estimate handler error:', err.message, err.stack);
+      res.status(500).json({ error: err.message });
+    }
 });
 
 app.get('/', (req, res) => res.send('Animal Counter API running'));
 
+app.use((err, req, res, next) => {
+  console.error('Unhandled Express error:', err.message, err.stack);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    type: err.type || 'unknown'
+  });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
