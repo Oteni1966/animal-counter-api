@@ -65,17 +65,44 @@ app.post('/estimate', estimateLimiter, async (req, res) => {
     });
 
     const data = await response.json();
-      if (!response.ok) {
-        console.error('Anthropic API error:', response.status, data);
-        return res.status(response.status).json({ error: 'Anthropic API error', details: data });
-      }
-      console.log('Anthropic response received:', JSON.stringify(data).slice(0, 200));
-      const count = parseInt(data.content[0].text.trim());
-      res.json({ count: isNaN(count) ? 0 : count });
-    } catch (err) {
-      console.error('Estimate handler error:', err.message, err.stack);
-      res.status(500).json({ error: err.message });
+           if (!response.ok) {
+      console.error('Anthropic API error:', response.status, data);
+      return res.status(502).json({
+        code: 'ANTHROPIC_API_ERROR',
+        error: 'The AI service is having trouble right now. Please try again in a minute.'
+      });
     }
+    console.log('Anthropic response received:', JSON.stringify(data).slice(0, 200));
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      console.error('Malformed AI response:', data);
+      return res.status(502).json({
+        code: 'MALFORMED_RESPONSE',
+        error: 'The AI response was not in the expected format. Please try again.'
+      });
+    }
+    const rawText = data.content[0].text.trim();
+    const count = parseInt(rawText);
+    if (isNaN(count)) {
+      console.error('Could not parse count from AI response:', rawText);
+      return res.status(502).json({
+        code: 'PARSE_ERROR',
+        error: 'The AI response could not be turned into a number. Please try again.'
+      });
+    }
+    res.json({ count: count });
+  } catch (err) {
+    console.error('Estimate handler error:', err.message, err.stack);
+    if (err.name === 'AbortError' || err.message.includes('timeout')) {
+      return res.status(504).json({
+        code: 'TIMEOUT',
+        error: 'The AI service is slow right now. Please try again in a minute.'
+      });
+    }
+    res.status(500).json({
+      code: 'INTERNAL_ERROR',
+      error: 'Something unexpected went wrong. Please try again.'
+    });
+  }
 });
 
 app.get('/', (req, res) => res.send('Animal Counter API running'));
