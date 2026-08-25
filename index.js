@@ -58,7 +58,7 @@ app.post('/estimate', estimateLimiter, async (req, res) => {
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } },
-            { type: 'text', text: 'Count all animals in this photo. Reply with only a number.' }
+            { type: 'text', text: 'You are counting livestock animals in this photo. Follow these rules strictly. Count only live goats, sheep, cows, or chickens. Do not count humans, vehicles, feeders, water troughs, buildings, or shadows. If two animals overlap or touch, count each one only once, do not double count. Do not count partial animals that are cut off at the edge of the frame unless more than half the body is visible. Be conservative. If you are unsure whether something is an animal or how many animals are in a cluster, count fewer rather than more. Reply with only a single number, nothing else.' }
           ]
         }]
       })
